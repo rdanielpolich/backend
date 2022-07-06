@@ -1,13 +1,14 @@
-const { json } = require("express");
+// const { json } = require("express");
 const express = require("express");
 
 class Server {
   constructor() {
     this.app = express();
     this.port = process.env.PORT;
-    this.routes();
-    this.middlewares();
     this.usuariosPath = "/api/usuarios";
+
+    this.middlewares();
+    this.routes();
   }
 
   middlewares() {
