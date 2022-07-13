@@ -1,56 +1,82 @@
-const Usuario = require("../models/usuario");
+const { request, resolve } = require("express");
 const bcrypt = require("bcryptjs");
-const { validationResult } = require("express-validator");
 
-const usuariosGet = (req, res) => {
-  const { api_key, nombre } = req.query;
+const Usuario = require("../models/usuario");
 
-  res.json({ msg: "Petición GET" });
-  api_key, nombre;
+const usuariosGet = async (req = request, res) => {
+  // const { api_key, nombre } = req.query;
+  const { limite = 5, desde = 0 } = req.query;
+  // const usuarios = await Usuario.find({ estado: true })
+  //   .skip(desde)
+  //   .limit(limite);
+  // const total = await Usuario.countDocuments();
+
+  //peticiones simultaneas (mejor tiempo de respuesta)
+  const [usuarios, total] = await Promise.all([
+    Usuario.find({ estado: true }).skip(desde).limit(limite),
+    Usuario.countDocuments({ estado: true }),
+  ]);
+
+  res.json({
+    total,
+    usuarios,
+  });
 };
 
-const usuariosPost = async (req, res) => {
-  //verificar si el correo es valido
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json(errors);
-  }
-
+const usuarioPost = async (req = request, res = resolve) => {
   const { nombre, email, password, role } = req.body;
   const usuario = new Usuario({ nombre, email, password, role });
 
-  //validar si el mail existe
-  const existeEmail = await Usuario.findOne({ email });
-  if (existeEmail) {
-    return res.status(400).json({
-      msg: "El correo ingresado ya existe",
-    });
-  }
-
-  //encriptar contraseña
-
+  //Encriptar la contraseña
   const salt = bcrypt.genSaltSync();
   usuario.password = bcrypt.hashSync(password, salt);
 
   await usuario.save();
-  res.status(201).json({ msg: "Petición POST" });
-  usuario;
+
+  res.status(201).json({
+    // msg: "Petición POST - controller",
+    usuario,
+  });
 };
 
-const usuariosPut = (req, res) => {
+const usuarioPut = async (req, res) => {
+  const { id } = req.params;
+  const { _id, password, email, ...datos } = req.body;
+
+  //validar contra la base de datos
+  if (password) {
+    //encriptar contraseña
+    const salt = bcrypt.genSaltSync();
+    datos.password = bcrypt.hashSync(password, salt);
+  }
+
+  const usuario = await Usuario.findByIdAndUpdate(id, datos, { new: true });
+
+  res.json({
+    msg: "Usuario actualizado",
+    usuario,
+  });
+};
+
+const usuarioDelete = async (req, res) => {
   const { id } = req.params;
 
-  res.json({ msg: "Petición PUT" });
-  id;
-};
+  //inactivar un usuario
+  const query = { estado: false };
+  const usuarioBorrado = await Usuario.findByIdAndUpdate(id, query, {
+    new: true,
+  });
 
-const usuariosDelete = (req, res) => {
-  res.json({ msg: "Petición DELETE" });
-};
+  // const usuarioBorrado = await Usuario.findByIdAndDelete(id);
 
+  res.json({
+    msg: "Usuario Borrado de la BD",
+    usuarioBorrado,
+  });
+};
 module.exports = {
   usuariosGet,
-  usuariosPost,
-  usuariosPut,
-  usuariosDelete,
+  usuarioPost,
+  usuarioPut,
+  usuarioDelete,
 };
